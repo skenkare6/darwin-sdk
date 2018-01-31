@@ -1,0 +1,7 @@
+__pycache__
+*.pyc
+.DS_Store
+*.*~
+amb_sdk.egg-info
+build
+dist
