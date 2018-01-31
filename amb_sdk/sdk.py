@@ -426,8 +426,6 @@ class DarwinSdk:
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
-        import ipdb
-        ipdb.set_trace()
         payload = {'job_name': job_name, 'artifact_name': artifact_name, 'supervised': supervised}
         r = self.s.post(url, headers=headers, data=payload)
         return self.get_return_info(r)
