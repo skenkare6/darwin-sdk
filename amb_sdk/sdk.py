@@ -358,6 +358,7 @@ class DarwinSdk:
                         if len(data["index"]) == len(data['actual']):
                             df = pd.DataFrame({'index': data['index'], 'actual': data['actual'],
                                                'predicted': data['predicted']})
+                            return True, df
                         else:
                             df = pd.DataFrame({'actual': data['actual'], 'predicted': data['predicted']})
                             return True, df
@@ -472,7 +473,7 @@ class DarwinSdk:
             (code, response) = self.lookup_job_status_name(str(job_name))
             print(response)
         if response['percent_complete'] < 100:
-            return(False, "Waited for " + time_limit / 60 + "minutes. Re-run wait_for_job to wait longer.")
+            return(False, "Waited for " + str(time_limit / 60) + " minutes. Re-run wait_for_job to wait longer.")
         if response['percent_complete'] == 100 and response['status'] != 'Failed':
             return (True, "Job completed")
         return False, response
