@@ -340,7 +340,10 @@ class DarwinSdk:
                 else:
                     return False, "Cannot interpret Test artifact"
             if (artifact_type == 'Risk'):
-                return True, response
+                with tempfile.NamedTemporaryFile(prefix='artifact-', suffix='.csv', delete=False) as csv_file:
+                    csv_filename = csv_file.name
+                    csv_file.write(artifact.encode('latin-1'))
+                    return True,  {"filename": csv_filename}
             if (artifact_type == 'Run'):
                 if 'png' in artifact[0:100]:
                     with tempfile.NamedTemporaryFile(prefix='artifact-', suffix='.zip', delete=False) as zip_file:
@@ -363,7 +366,7 @@ class DarwinSdk:
                             df = pd.DataFrame({'actual': data['actual'], 'predicted': data['predicted']})
                             return True, df
                 else:
-                    data = response['artifact'].split('\n')
+                    data = response['artifact'].splitlines()
                     col_name = data[0]
                     del data[0]
                     df = pd.DataFrame(data, columns=[col_name])
