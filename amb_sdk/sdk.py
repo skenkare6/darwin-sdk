@@ -469,17 +469,23 @@ class DarwinSdk:
         start_time = time.time()
         (code, response) = self.lookup_job_status_name(str(job_name))
         print(response)
-        while (response['percent_complete'] != 100):
-            if (time.time() - start_time > time_limit):
-                break
-            time.sleep(15.0)
-            (code, response) = self.lookup_job_status_name(str(job_name))
-            print(response)
-        if response['percent_complete'] < 100:
-            return(False, "Waited for " + str(time_limit / 60) + " minutes. Re-run wait_for_job to wait longer.")
-        if response['percent_complete'] == 100 and response['status'] != 'Failed':
-            return (True, "Job completed")
-        return False, response
+        if type(response) is dict:
+            while (response['percent_complete'] != 100):
+                if (time.time() - start_time > time_limit):
+                    break
+                time.sleep(15.0)
+                (code, response) = self.lookup_job_status_name(str(job_name))
+                print(response)
+                if type(response) is not dict:
+                    return False, response
+                if response['percent_complete'] < 100:
+                    return(False, "Waited for " + str(time_limit / 60) +
+                           " minutes. Re-run wait_for_job to wait longer.")
+                if response['percent_complete'] == 100 and response['status'] != 'Failed':
+                    return (True, "Job completed")
+                return False, response
+        else:
+            return False, response
 
     # private
     @staticmethod
