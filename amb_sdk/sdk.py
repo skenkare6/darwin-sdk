@@ -478,12 +478,12 @@ class DarwinSdk:
                 print(response)
                 if type(response) is not dict:
                     return False, response
-                if response['percent_complete'] < 100:
-                    return(False, "Waited for " + str(time_limit / 60) +
-                           " minutes. Re-run wait_for_job to wait longer.")
-                if response['percent_complete'] == 100 and response['status'] != 'Failed':
-                    return (True, "Job completed")
-                return False, response
+            if response['percent_complete'] < 100:
+                return(False, "Waited for " + str(time_limit / 60) +
+                       " minutes. Re-run wait_for_job to wait longer.")
+            if response['percent_complete'] == 100 and response['status'] != 'Failed':
+                return (True, "Job completed")
+            return False, response
         else:
             return False, response
 
