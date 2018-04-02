@@ -26,17 +26,23 @@ class DarwinSdk:
               'auth_login_user': 'auth/login/user',
               'auth_register': 'auth/register',
               'auth_register_user': 'auth/register/user',
+              'auth_change_password': 'auth/password',
+              'auth_delete_user': 'auth/register/user/',
               'lookup_job_status': 'job/status',
               'lookup_job_status_name': 'job/status/',
+              'delete_job':  'job/status/',
+              'stop_job':  'job/status/',
               'lookup_artifact': 'lookup/artifact',
               'lookup_artifact_name': 'lookup/artifact/',
-              'lookup_client': 'lookup/client',
+              'lookup_limits': 'lookup/limits',
               'lookup_dataset': 'lookup/dataset',
               'lookup_dataset_name': 'lookup/dataset/',
               'lookup_model': 'lookup/model',
               'lookup_model_name': 'lookup/model/',
               'lookup_tier': 'lookup/tier',
               'lookup_tier_num': 'lookup/tier/',
+              'lookup_user': 'lookup/user',
+              'lookup_username': 'lookup/user/',
               'create_model': 'train/model',
               'delete_model': 'train/model/',
               'resume_training_model': 'train/model/',
@@ -51,7 +57,8 @@ class DarwinSdk:
               'set_url': '',
               'get_url': '',
               'delete_all_datasets': '',
-              'delete_all_models': ''}
+              'delete_all_models': '',
+              'wait_for_job': ''}
 
     # Set URL
     def set_url(self, url, version='v1'):
@@ -122,6 +129,25 @@ class DarwinSdk:
         else:
             return False, '{}: {} - {}'.format(r.status_code, r.reason, r.text[0:1024])
 
+    def auth_change_password(self, curpass, newpass):
+        url = self.server_url + self.routes['auth_change_password']
+        headers = {'Authorization': self.auth_string}
+        payload = {'curpass': str(curpass), 'newpass1': str(newpass), 'newpass2': str(newpass)}
+        r = self.s.patch(url, headers=headers, data=payload)
+        if r.ok:
+            self.password = newpass
+            return True, None
+        else:
+            return False, '{}: {} - {}'.format(r.status_code, r.reason, r.text[0:1024])
+
+    def auth_delete_user(self, username):
+        url = self.server_url + self.routes['auth_delete_user'] + str(username)
+        headers = self.get_auth_header()
+        if headers is None:
+            return False, "Cannot get Auth token. Please log in."
+        r = self.s.delete(url, headers=headers)
+        return self.get_return_info(r)
+
     # Conveniences
     def get_auth_header(self):
         if not self.username and not self.api_key:
@@ -143,7 +169,7 @@ class DarwinSdk:
         else:
             return False, '{}: {} - {}'.format(r.status_code, r.reason, r.text[0:1024])
 
-    # Get job information
+    # Job methods
     def lookup_job_status(self, age=None, status=None):
         url = self.server_url + self.routes['lookup_job_status']
         headers = self.get_auth_header()
@@ -159,6 +185,22 @@ class DarwinSdk:
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
         r = self.s.get(url + str(job_name), headers=headers)
+        return self.get_return_info(r)
+
+    def delete_job(self, job_name):
+        url = self.server_url + self.routes['delete_job']
+        headers = self.get_auth_header()
+        if headers is None:
+            return False, "Cannot get Auth token. Please log in."
+        r = self.s.delete(url + str(job_name), headers=headers)
+        return self.get_return_info(r)
+
+    def stop_job(self, job_name):
+        url = self.server_url + self.routes['stop_job']
+        headers = self.get_auth_header()
+        if headers is None:
+            return False, "Cannot get Auth token. Please log in."
+        r = self.s.patch(url + str(job_name), headers=headers)
         return self.get_return_info(r)
 
     # Get model or dataset metadata
@@ -180,8 +222,8 @@ class DarwinSdk:
         r = self.s.get(url + str(artifact_name), headers=headers)
         return self.get_return_info(r)
 
-    def lookup_client(self):
-        url = self.server_url + self.routes['lookup_client']
+    def lookup_limits(self):
+        url = self.server_url + self.routes['lookup_limits']
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
@@ -230,6 +272,22 @@ class DarwinSdk:
 
     def lookup_tier_num(self, tier_num):
         url = self.server_url + self.routes['lookup_tier_num'] + str(tier_num)
+        headers = self.get_auth_header()
+        if headers is None:
+            return False, "Cannot get Auth token. Please log in."
+        r = self.s.get(url, headers=headers)
+        return self.get_return_info(r)
+
+    def lookup_user(self):
+        url = self.server_url + self.routes['lookup_user']
+        headers = self.get_auth_header()
+        if headers is None:
+            return False, "Cannot get Auth token. Please log in."
+        r = self.s.get(url, headers=headers)
+        return self.get_return_info(r)
+
+    def lookup_username(self, username):
+        url = self.server_url + self.routes['lookup_username'] + str(username)
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
