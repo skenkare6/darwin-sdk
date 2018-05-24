@@ -1,4 +1,5 @@
 import requests
+import urllib
 import time
 import os.path
 import tempfile
@@ -27,6 +28,8 @@ class DarwinSdk:
               'auth_register': 'auth/register',
               'auth_register_user': 'auth/register/user',
               'auth_change_password': 'auth/password',
+              'auth_reset_password': 'auth/password/reset',
+              'auth_set_email': 'auth/email',
               'auth_delete_user': 'auth/register/user/',
               'lookup_job_status': 'job/status',
               'lookup_job_status_name': 'job/status/',
@@ -52,6 +55,7 @@ class DarwinSdk:
               'delete_artifact': 'download/artifacts/',
               'analyze_data': 'analyze/data/',
               'analyze_model': 'analyze/model/',
+              'analyze_predictions': 'analyze/model/predictions/',
               'create_risk_info': 'risk/',
               'run_model': 'run/model/',
               'set_url': '',
@@ -100,13 +104,13 @@ class DarwinSdk:
         else:
             return False, '{}: {} - {}'.format(r.status_code, r.reason, r.text[0:1024])
 
-    def auth_register(self, password, api_key):
+    def auth_register(self, password, api_key, email):
         self.username = ''
         self.password = password
         self.api_key = api_key
         url = self.server_url + self.routes['auth_register']
         headers = {'Authorization': self.auth_string}
-        payload = {'api_key': str(api_key), 'pass1': str(password), 'pass2': str(password)}
+        payload = {'api_key': str(api_key), 'pass1': str(password), 'pass2': str(password), 'email': str(email)}
         r = self.s.post(url, headers=headers, data=payload)
         if r.ok:
             self.auth_string = 'Bearer ' + r.json()['access_token']
@@ -115,12 +119,12 @@ class DarwinSdk:
         else:
             return False, '{}: {} - {}'.format(r.status_code, r.reason, r.text[0:1024])
 
-    def auth_register_user(self, username, password):
+    def auth_register_user(self, username, password, email):
         self.username = username
         self.password = password
         url = self.server_url + self.routes['auth_register_user']
         headers = {'Authorization': self.auth_string}
-        payload = {'username': str(username), 'pass1': str(password), 'pass2': str(password)}
+        payload = {'username': str(username), 'pass1': str(password), 'pass2': str(password), 'email': str(email)}
         r = self.s.post(url, headers=headers, data=payload)
         if r.ok:
             self.auth_string = 'Bearer ' + r.json()['access_token']
@@ -140,8 +144,24 @@ class DarwinSdk:
         else:
             return False, '{}: {} - {}'.format(r.status_code, r.reason, r.text[0:1024])
 
+    def auth_reset_password(self, username):
+        url = self.server_url + self.routes['auth_reset_password']
+        headers = self.get_auth_header()
+        payload = {'username': str(username)}
+        r = self.s.patch(url, headers=headers, data=payload)
+        return self.get_return_info(r)
+
+    def auth_set_email(self, username, email):
+        url = self.server_url + self.routes['auth_set_email']
+        headers = self.get_auth_header()
+        if headers is None:
+            return False, "Cannot get Auth token. Please log in."
+        payload = {'username': username, 'email': email}
+        r = self.s.patch(url, headers=headers, data=payload)
+        return self.get_return_info(r)
+    
     def auth_delete_user(self, username):
-        url = self.server_url + self.routes['auth_delete_user'] + str(username)
+        url = self.server_url + self.routes['auth_delete_user'] + urllib.parse.quote_plus(username)
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
@@ -184,7 +204,7 @@ class DarwinSdk:
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
-        r = self.s.get(url + str(job_name), headers=headers)
+        r = self.s.get(url + urllib.parse.quote_plus(job_name), headers=headers)
         return self.get_return_info(r)
 
     def delete_job(self, job_name):
@@ -192,7 +212,7 @@ class DarwinSdk:
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
-        r = self.s.delete(url + str(job_name), headers=headers)
+        r = self.s.delete(url + urllib.parse.quote_plus(job_name), headers=headers)
         return self.get_return_info(r)
 
     def stop_job(self, job_name):
@@ -200,7 +220,7 @@ class DarwinSdk:
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
-        r = self.s.patch(url + str(job_name), headers=headers)
+        r = self.s.patch(url + urllib.parse.quote_plus(job_name), headers=headers)
         return self.get_return_info(r)
 
     # Get model or dataset metadata
@@ -219,7 +239,7 @@ class DarwinSdk:
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
-        r = self.s.get(url + str(artifact_name), headers=headers)
+        r = self.s.get(url + urllib.parse.quote_plus(artifact_name), headers=headers)
         return self.get_return_info(r)
 
     def lookup_limits(self):
@@ -243,7 +263,7 @@ class DarwinSdk:
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
-        r = self.s.get(url + dataset_name, headers=headers)
+        r = self.s.get(url + urllib.parse.quote_plus(dataset_name), headers=headers)
         return self.get_return_info(r)
 
     def lookup_model(self):
@@ -255,7 +275,7 @@ class DarwinSdk:
         return self.get_return_info(r)
 
     def lookup_model_name(self, model_name):
-        url = self.server_url + self.routes['lookup_model_name'] + str(model_name)
+        url = self.server_url + self.routes['lookup_model_name'] + urllib.parse.quote_plus(model_name)
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
@@ -271,7 +291,7 @@ class DarwinSdk:
         return self.get_return_info(r)
 
     def lookup_tier_num(self, tier_num):
-        url = self.server_url + self.routes['lookup_tier_num'] + str(tier_num)
+        url = self.server_url + self.routes['lookup_tier_num'] + urllib.parse.quote_plus(str(tier_num))
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
@@ -287,7 +307,7 @@ class DarwinSdk:
         return self.get_return_info(r)
 
     def lookup_username(self, username):
-        url = self.server_url + self.routes['lookup_username'] + str(username)
+        url = self.server_url + self.routes['lookup_username'] + urllib.parse.quote_plus(username)
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
@@ -310,7 +330,7 @@ class DarwinSdk:
         return self.get_return_info(r)
 
     def delete_model(self, model_name):
-        url = self.server_url + self.routes['delete_model'] + str(model_name)
+        url = self.server_url + self.routes['delete_model'] + urllib.parse.quote_plus(model_name)
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
@@ -318,13 +338,11 @@ class DarwinSdk:
         return self.get_return_info(r)
 
     def resume_training_model(self, model_name, dataset_names, **kwargs):
-        url = self.server_url + self.routes['resume_training_model'] + model_name
+        url = self.server_url + self.routes['resume_training_model'] + urllib.parse.quote_plus(model_name)
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
         parameters = kwargs
-        if 'model_name' not in parameters:
-            parameters['model_name'] = model_name
         if 'dataset_names' not in parameters:
             if isinstance(dataset_names, str):
                 parameters['dataset_names'] = [dataset_names]
@@ -344,12 +362,17 @@ class DarwinSdk:
         if headers is None:
             return False, None
         payload = {'dataset_name': str(dataset_name)}
-        files = {'dataset': (str(dataset_path), open(str(dataset_path), 'rb'), 'text/csv/h5')}
+        try:
+            files = {'dataset': (str(dataset_path), open(str(dataset_path), 'rb'), 'text/csv/h5')}
+        except FileNotFoundError as e:
+            return False, "File not found"
+        except:
+            return False, "File error"
         r = self.s.post(url, headers=headers, data=payload, files=files)
         return self.get_return_info(r)
 
     def delete_dataset(self, dataset_name):
-        url = self.server_url + self.routes['delete_dataset'] + str(dataset_name)
+        url = self.server_url + self.routes['delete_dataset'] + urllib.parse.quote_plus(dataset_name)
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
@@ -365,7 +388,7 @@ class DarwinSdk:
         (code, response) = self.lookup_artifact_name(artifact_name)
         if code is True:
             artifact_type = response['type']
-        url = self.server_url + self.routes['download_artifact'] + str(artifact_name)
+        url = self.server_url + self.routes['download_artifact'] + urllib.parse.quote_plus(artifact_name)
 
         r = self.s.get(url, headers=headers)
         (code, response) = self.get_return_info(r)
@@ -378,7 +401,16 @@ class DarwinSdk:
                         png_file.write(artifact.encode('latin-1'))
                         return True,  {"filename": png_filename}
                 else:
-                    return False, "Unknown Model artifact type"
+                    data = json.loads(artifact)
+                    if 'global_feat_imp' in data:
+                        df = pd.Series(data['global_feat_imp']).sort_values(ascending=False)
+                    elif 'local_feat_imp' in data:
+                        df = pd.DataFrame(data['local_feat_imp'])
+                        df.index = df.index.astype(int)
+                        df = df.sort_index()
+                    else:
+                        return False, "Unknown artifact format for model"
+                    return True, df
             if artifact_type == 'Test':
                 data = json.loads(response['artifact'])
                 if 'index' in data:
@@ -442,7 +474,7 @@ class DarwinSdk:
             return False, response
 
     def delete_artifact(self, artifact_name):
-        url = self.server_url + self.routes['delete_artifact'] + str(artifact_name)
+        url = self.server_url + self.routes['delete_artifact'] + urllib.parse.quote_plus(artifact_name)
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
@@ -451,7 +483,7 @@ class DarwinSdk:
 
     # Analyze a model or data set
     def analyze_data(self, dataset_name, **kwargs):
-        url = self.server_url + self.routes['analyze_data'] + str(dataset_name)
+        url = self.server_url + self.routes['analyze_data'] + urllib.parse.quote_plus(dataset_name)
         headers = self.get_auth_header()
         parameters = kwargs
         if headers is None:
@@ -459,8 +491,19 @@ class DarwinSdk:
         r = self.s.post(url, headers=headers, json=parameters)
         return self.get_return_info(r)
 
-    def analyze_model(self, model_name, job_name=None, artifact_name=None):
-        url = self.server_url + self.routes['analyze_model'] + str(model_name)
+    # Analyze global feature importances
+    def analyze_model(self, model_name, job_name=None, artifact_name=None, category_name=None):
+        url = self.server_url + self.routes['analyze_model'] + urllib.parse.quote_plus(model_name)
+        headers = self.get_auth_header()
+        if headers is None:
+            return False, "Cannot get Auth token. Please log in."
+        payload = {'job_name': job_name, 'artifact_name': artifact_name, 'category_name': category_name}
+        r = self.s.post(url, headers=headers, data=payload)
+        return self.get_return_info(r)
+
+    # Analyze sample-wise feature importances
+    def analyze_predictions(self, model_name, dataset_name, job_name=None, artifact_name=None):
+        url = self.server_url + self.routes['analyze_predictions'] + str(model_name) + '/' + dataset_name
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
