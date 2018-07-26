@@ -21,7 +21,11 @@ setup(
         'requests',
         'validators',
         'urllib3',
-        'pandas'
+        'pandas',
+        'matplotlib',
+        'scikit-learn',
+        'scipy',
+        'jupyter'
     ],
     packages=['amb_sdk']
 )
