@@ -6,8 +6,6 @@ import os.path
 import tempfile
 import validators
 import json
-import zipfile
-import io
 import pandas as pd
 from amb_sdk.config import Config as cfg
 
@@ -55,7 +53,6 @@ class DarwinSdk:
               'upload_dataset': 'upload/',
               'delete_dataset': 'upload/',
               'download_artifact': 'download/artifacts/',
-              'download_model': 'download/models/',
               'delete_artifact': 'download/artifacts/',
               'analyze_data': 'analyze/data/',
               'analyze_model': 'analyze/model/',
@@ -390,7 +387,7 @@ class DarwinSdk:
             return False, "Cannot get Auth token. Please log in."
 
         if artifact_path:
-            (code, response) = self._validate_artifact_file_path(artifact_path)
+            (code, response) = self.__validate_artifact_file_path(artifact_path)
             if not code:
                 return False, response
 
@@ -406,7 +403,7 @@ class DarwinSdk:
             artifact = response['artifact']
             if artifact_type == 'Model':
                 if artifact[1:4] == 'PNG':
-                    self._write_to_file(artifact_path, '.png', artifact)
+                    return self.__write_to_file(artifact_path, '.png', artifact)
                 else:
                     data = json.loads(artifact)
                     if 'global_feat_imp' in data:
@@ -437,14 +434,14 @@ class DarwinSdk:
                 else:
                     return False, "Cannot interpret Test artifact"
             if artifact_type == 'Risk':
-                self._write_to_file(artifact_path, '.csv', artifact)
+                return self.__write_to_file(artifact_path, '.csv', artifact)
 
             if artifact_type == 'Run':
                 if 'png' in artifact[0:100]:
-                    self._write_to_file(artifact_path, '.zip', artifact)
+                    return self.__write_to_file(artifact_path, '.zip', artifact)
 
                 if 'anomaly' in artifact[0:50]:
-                    self._write_to_file(artifact_path, '.csv', artifact)
+                    return self.__write_to_file(artifact_path, '.csv', artifact)
 
                 if DarwinSdk.is_json(response['artifact']):
                     data = json.loads(response['artifact'])
@@ -494,27 +491,6 @@ class DarwinSdk:
             return False, "Cannot get Auth token. Please log in."
         r = self.s.delete(url, headers=headers)
         return self.get_return_info(r)
-
-    def download_model(self, model_name, path=None):
-        """
-        Download a model and data profiler given a model_name and location
-        If location is not supplied, it will download to the current directory
-        :param model_name: Model name to download
-        :param path: Path where the model and data profiler are supposed to be downloaded
-        :return: Response if the download was successful or not
-        """
-        headers = {'Authorization': self.auth_string}
-        if headers is None:
-            return False, "Cannot get Auth token. Please log in."
-        url = self.server_url + self.routes['download_model'] + urllib.parse.quote_plus(model_name)
-        r = self.s.get(url, headers=headers, stream=True)
-        try:
-            z = zipfile.ZipFile(io.BytesIO(r.content))
-            z.extractall(path=path)
-        except:
-            return False, "Error while downloading models"
-        return True, None
-
 
     # Analyze a model or data set
     def analyze_data(self, dataset_name, **kwargs):
@@ -623,7 +599,7 @@ class DarwinSdk:
         else:
             return False, response
 
-    def _validate_artifact_file_path(self, artifact_path):
+    def __validate_artifact_file_path(self, artifact_path):
 
         if not os.path.isdir(artifact_path):
             return False, "Invalid Directory or Path"
@@ -633,7 +609,7 @@ class DarwinSdk:
 
         return True, ""
 
-    def _write_to_file(self, artifact_path, suffix, artifact):
+    def __write_to_file(self, artifact_path, suffix, artifact):
 
         with tempfile.NamedTemporaryFile(prefix='artifact-', suffix=suffix, delete=False, dir=artifact_path) as file:
             filename = file.name
