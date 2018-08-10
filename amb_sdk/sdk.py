@@ -162,7 +162,7 @@ class DarwinSdk:
         return self.get_return_info(r)
     
     def auth_delete_user(self, username):
-        url = self.server_url + self.routes['auth_delete_user'] + urllib.parse.quote_plus(username)
+        url = self.server_url + self.routes['auth_delete_user'] + urllib.parse.quote(username, safe='')
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
@@ -205,7 +205,7 @@ class DarwinSdk:
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
-        r = self.s.get(url + urllib.parse.quote_plus(job_name), headers=headers)
+        r = self.s.get(url + urllib.parse.quote(job_name, safe=''), headers=headers)
         return self.get_return_info(r)
 
     def delete_job(self, job_name):
@@ -213,7 +213,7 @@ class DarwinSdk:
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
-        r = self.s.delete(url + urllib.parse.quote_plus(job_name), headers=headers)
+        r = self.s.delete(url + urllib.parse.quote(job_name, safe=''), headers=headers)
         return self.get_return_info(r)
 
     def stop_job(self, job_name):
@@ -221,7 +221,7 @@ class DarwinSdk:
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
-        r = self.s.patch(url + urllib.parse.quote_plus(job_name), headers=headers)
+        r = self.s.patch(url + urllib.parse.quote(job_name, safe=''), headers=headers)
         return self.get_return_info(r)
 
     # Get model or dataset metadata
@@ -240,7 +240,7 @@ class DarwinSdk:
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
-        r = self.s.get(url + urllib.parse.quote_plus(artifact_name), headers=headers)
+        r = self.s.get(url + urllib.parse.quote(artifact_name, safe=''), headers=headers)
         return self.get_return_info(r)
 
     def lookup_limits(self):
@@ -264,7 +264,7 @@ class DarwinSdk:
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
-        r = self.s.get(url + urllib.parse.quote_plus(dataset_name), headers=headers)
+        r = self.s.get(url + urllib.parse.quote(dataset_name, safe=''), headers=headers)
         return self.get_return_info(r)
 
     def lookup_model(self):
@@ -276,7 +276,7 @@ class DarwinSdk:
         return self.get_return_info(r)
 
     def lookup_model_name(self, model_name):
-        url = self.server_url + self.routes['lookup_model_name'] + urllib.parse.quote_plus(model_name)
+        url = self.server_url + self.routes['lookup_model_name'] + urllib.parse.quote(model_name, safe='')
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
@@ -292,7 +292,7 @@ class DarwinSdk:
         return self.get_return_info(r)
 
     def lookup_tier_num(self, tier_num):
-        url = self.server_url + self.routes['lookup_tier_num'] + urllib.parse.quote_plus(str(tier_num))
+        url = self.server_url + self.routes['lookup_tier_num'] + urllib.parse.quote(str(tier_num, safe=''))
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
@@ -308,7 +308,7 @@ class DarwinSdk:
         return self.get_return_info(r)
 
     def lookup_username(self, username):
-        url = self.server_url + self.routes['lookup_username'] + urllib.parse.quote_plus(username)
+        url = self.server_url + self.routes['lookup_username'] + urllib.parse.quote(username, safe='')
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
@@ -331,7 +331,7 @@ class DarwinSdk:
         return self.get_return_info(r)
 
     def delete_model(self, model_name):
-        url = self.server_url + self.routes['delete_model'] + urllib.parse.quote_plus(model_name)
+        url = self.server_url + self.routes['delete_model'] + urllib.parse.quote(model_name, safe='')
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
@@ -339,7 +339,7 @@ class DarwinSdk:
         return self.get_return_info(r)
 
     def resume_training_model(self, model_name, dataset_names, **kwargs):
-        url = self.server_url + self.routes['resume_training_model'] + urllib.parse.quote_plus(model_name)
+        url = self.server_url + self.routes['resume_training_model'] + urllib.parse.quote(model_name, safe='')
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
@@ -373,7 +373,7 @@ class DarwinSdk:
         return self.get_return_info(r)
 
     def delete_dataset(self, dataset_name):
-        url = self.server_url + self.routes['delete_dataset'] + urllib.parse.quote_plus(dataset_name)
+        url = self.server_url + self.routes['delete_dataset'] + urllib.parse.quote(dataset_name, safe='')
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
@@ -395,7 +395,7 @@ class DarwinSdk:
         (code, response) = self.lookup_artifact_name(artifact_name)
         if code is True:
             artifact_type = response['type']
-        url = self.server_url + self.routes['download_artifact'] + urllib.parse.quote_plus(artifact_name)
+        url = self.server_url + self.routes['download_artifact'] + urllib.parse.quote(artifact_name, safe='')
 
         r = self.s.get(url, headers=headers)
         (code, response) = self.get_return_info(r)
@@ -485,7 +485,7 @@ class DarwinSdk:
             return False, response
 
     def delete_artifact(self, artifact_name):
-        url = self.server_url + self.routes['delete_artifact'] + urllib.parse.quote_plus(artifact_name)
+        url = self.server_url + self.routes['delete_artifact'] + urllib.parse.quote(artifact_name, safe='')
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
@@ -494,7 +494,7 @@ class DarwinSdk:
 
     # Analyze a model or data set
     def analyze_data(self, dataset_name, **kwargs):
-        url = self.server_url + self.routes['analyze_data'] + urllib.parse.quote_plus(dataset_name)
+        url = self.server_url + self.routes['analyze_data'] + urllib.parse.quote(dataset_name, safe='')
         headers = self.get_auth_header()
         parameters = kwargs
         if headers is None:
@@ -504,7 +504,7 @@ class DarwinSdk:
 
     # Analyze global feature importances
     def analyze_model(self, model_name, job_name=None, artifact_name=None, category_name=None):
-        url = self.server_url + self.routes['analyze_model'] + urllib.parse.quote_plus(model_name)
+        url = self.server_url + self.routes['analyze_model'] + urllib.parse.quote(model_name, safe='')
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
