@@ -396,7 +396,6 @@ class DarwinSdk:
         if code is True:
             artifact_type = response['type']
         url = self.server_url + self.routes['download_artifact'] + urllib.parse.quote(artifact_name, safe='')
-
         r = self.s.get(url, headers=headers)
         (code, response) = self.get_return_info(r)
         if code is True:
@@ -466,16 +465,8 @@ class DarwinSdk:
                     if DarwinSdk.is_number(df[col_name][0]):
                         df[col_name] = pd.to_numeric(df[col_name], errors='coerce')
                     return True, df
-            if (artifact_type == 'Dataset'):
+            if artifact_type in ('Dataset', 'AnalyzeData'):
                 data = json.loads(response['artifact'])
-                df = pd.DataFrame(data=data[0], index=[0])
-                for x in range(1, len(data)):
-                    df = df.append(data[x], ignore_index=True)
-                return True, df
-            if artifact_type == 'AnalyzeData':
-                buf = '[' + response['artifact'] + ']'
-                buf = buf.replace('}', '},').replace('\n', '').replace(',]', ']')
-                data = json.loads(buf)
                 df = pd.DataFrame(data=data[0], index=[0])
                 for x in range(1, len(data)):
                     df = df.append(data[x], ignore_index=True)
