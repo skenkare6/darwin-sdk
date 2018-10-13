@@ -1,4 +1,3 @@
-import io
 import requests
 import urllib
 import time
@@ -6,6 +5,8 @@ import os.path
 import tempfile
 import validators
 import json
+import zipfile
+import io
 import pandas as pd
 from amb_sdk.config import Config as cfg
 
@@ -53,10 +54,13 @@ class DarwinSdk:
               'upload_dataset': 'upload/',
               'delete_dataset': 'upload/',
               'download_artifact': 'download/artifacts/',
+              'download_dataset': 'download/dataset/',
+              'download_model': 'download/model/',
               'delete_artifact': 'download/artifacts/',
               'analyze_data': 'analyze/data/',
               'analyze_model': 'analyze/model/',
               'analyze_predictions': 'analyze/model/predictions/',
+              'clean_data': 'clean/dataset/',
               'create_risk_info': 'risk/',
               'run_model': 'run/model/',
               'set_url': '',
@@ -160,7 +164,7 @@ class DarwinSdk:
         payload = {'username': username, 'email': email}
         r = self.s.patch(url, headers=headers, data=payload)
         return self.get_return_info(r)
-    
+
     def auth_delete_user(self, username):
         url = self.server_url + self.routes['auth_delete_user'] + urllib.parse.quote(username, safe='')
         headers = self.get_auth_header()
@@ -353,7 +357,7 @@ class DarwinSdk:
         return self.get_return_info(r)
 
     # Upload or delete a dataset
-    def upload_dataset(self, dataset_path, dataset_name=None):
+    def upload_dataset(self, dataset_path, dataset_name=None, has_header=True):
         if dataset_name is None:
             head, tail = os.path.split(dataset_path)
             dataset_name = tail
@@ -361,8 +365,8 @@ class DarwinSdk:
         url = self.server_url + self.routes['upload_dataset']
         headers = self.get_auth_header()
         if headers is None:
-            return False, None
-        payload = {'dataset_name': str(dataset_name)}
+            return False, "Cannot get Auth token. Please log in."
+        payload = {'dataset_name': str(dataset_name),  'has_header': has_header}
         try:
             files = {'dataset': (str(dataset_path), open(str(dataset_path), 'rb'), 'text/csv/h5')}
         except FileNotFoundError as e:
@@ -387,7 +391,7 @@ class DarwinSdk:
             return False, "Cannot get Auth token. Please log in."
 
         if artifact_path:
-            (code, response) = self.__validate_artifact_file_path(artifact_path)
+            (code, response) = self._validate_artifact_file_path(artifact_path)
             if not code:
                 return False, response
 
@@ -403,7 +407,7 @@ class DarwinSdk:
             artifact = response['artifact']
             if artifact_type == 'Model':
                 if artifact[1:4] == 'PNG':
-                    return self.__write_to_file(artifact_path, '.png', artifact)
+                    return self._write_to_file(artifact_path, '.png', artifact)
                 else:
                     data = json.loads(artifact)
                     if 'global_feat_imp' in data:
@@ -434,14 +438,14 @@ class DarwinSdk:
                 else:
                     return False, "Cannot interpret Test artifact"
             if artifact_type == 'Risk':
-                return self.__write_to_file(artifact_path, '.csv', artifact)
+                return self._write_to_file(artifact_path, '.csv', artifact)
 
             if artifact_type == 'Run':
                 if 'png' in artifact[0:100]:
-                    return self.__write_to_file(artifact_path, '.zip', artifact)
+                    return self._write_to_file(artifact_path, '.zip', artifact)
 
                 if 'anomaly' in artifact[0:50]:
-                    return self.__write_to_file(artifact_path, '.csv', artifact)
+                    return self._write_to_file(artifact_path, '.csv', artifact)
 
                 if DarwinSdk.is_json(response['artifact']):
                     data = json.loads(response['artifact'])
@@ -454,10 +458,13 @@ class DarwinSdk:
                             df = pd.DataFrame({'actual': data['actual'], 'predicted': data['predicted']})
                             return True, df
                     else:
-                        df = pd.DataFrame(data=data[0], index=[0])
-                        for x in range(1, len(data)):
-                            df = df.append(data[x], ignore_index=True)
-                        return True, df
+                        df = pd.read_json(json.dumps(data), orient='records')
+                        if artifact_path:
+                            csv_path = os.path.join(artifact_path, 'artifact.csv')
+                            df.to_csv(csv_path, encoding='utf-8', index=False)
+                            return True, {"filename": csv_path}
+                        else:
+                            return True, df
                 else:
                     data = response['artifact'].splitlines()
                     col_name = data[0]
@@ -484,6 +491,50 @@ class DarwinSdk:
         else:
             return False, response
 
+    # Download a dataset (artifact or original dataset)
+    def download_dataset(self, dataset_name, file_part=None, artifact_path=None):
+        artifact_name = dataset_name
+        headers = self.get_auth_header()
+        if headers is None:
+            return False, "Cannot get Auth token. Please log in."
+
+        if artifact_path:
+            (code, response) = self._validate_artifact_file_path(artifact_path)
+            if not code:
+                return False, response
+
+        (code, response) = self.lookup_artifact_name(artifact_name)
+        if code is True:  # artifact dataset
+            artifact_type = response['type']
+            url = self.server_url + self.routes['download_dataset'] + urllib.parse.quote(artifact_name, safe='')
+            r = self.s.get(url, headers=headers)
+            (code, response) = self.get_return_info(r)
+            if code is True:
+                artifact = response['dataset']
+                if artifact_type == 'CleanData':
+                    file_prefix = dataset_name + '-cleaned-'
+                    return self._write_to_file(artifact_path, '.csv', artifact, prefix=file_prefix)
+            return False, "Unknown dataset artifact type"
+        else:  # original dataset
+            (code, response) = self.lookup_dataset_name(artifact_name)
+            if code is True:
+                payload = {'file_part': file_part}
+                url = self.server_url + self.routes['download_dataset'] + urllib.parse.quote(artifact_name, safe='')
+                r = self.s.get(url, headers=headers, data=payload)
+                (code, response) = self.get_return_info(r)
+                if code is True:
+                    dataset = response['dataset']
+                    part = response['part']
+                    note = response['note']
+                    file_prefix = dataset_name + '-part' + str(part) + '-'
+                    response = self._write_to_file(artifact_path, '.csv', dataset, prefix=file_prefix)
+                    response[1]['part'] = part
+                    response[1]['note'] = note
+                    return response
+                return False, "Unknown dataset"
+            else:
+                return False, response
+
     def delete_artifact(self, artifact_name):
         url = self.server_url + self.routes['delete_artifact'] + urllib.parse.quote(artifact_name, safe='')
         headers = self.get_auth_header()
@@ -491,6 +542,27 @@ class DarwinSdk:
             return False, "Cannot get Auth token. Please log in."
         r = self.s.delete(url, headers=headers)
         return self.get_return_info(r)
+
+    def download_model(self, model_name, path=None):
+        """
+        Download a model and data profiler given a model_name and location
+        If location is not supplied, it will download to the current directory
+        :param model_name: Model name to download
+        :param path: Path where the model and data profiler are supposed to be downloaded
+        :return: Response if the download was successful or not
+        """
+        headers = {'Authorization': self.auth_string}
+        if headers is None:
+            return False, "Cannot get Auth token. Please log in."
+        url = self.server_url + self.routes['download_model'] + urllib.parse.quote_plus(model_name)
+        r = self.s.get(url, headers=headers, stream=True)
+        try:
+            z = zipfile.ZipFile(io.BytesIO(r.content))
+            z.extractall(path=path)
+        except:
+            return False, "Error while downloading models"
+        return True, None
+
 
     # Analyze a model or data set
     def analyze_data(self, dataset_name, **kwargs):
@@ -520,6 +592,16 @@ class DarwinSdk:
             return False, "Cannot get Auth token. Please log in."
         payload = {'job_name': job_name, 'artifact_name': artifact_name}
         r = self.s.post(url, headers=headers, data=payload)
+        return self.get_return_info(r)
+
+    # Clean a data set
+    def clean_data(self, dataset_name, **kwargs):
+        url = self.server_url + self.routes['clean_data'] + urllib.parse.quote(dataset_name, safe='')
+        headers = self.get_auth_header()
+        parameters = kwargs
+        if headers is None:
+            return False, "Cannot get Auth token. Please log in."
+        r = self.s.post(url, headers=headers, json=parameters)
         return self.get_return_info(r)
 
     # Create risk information for a datatset
@@ -560,7 +642,7 @@ class DarwinSdk:
                 model_name = model['name']
                 (c, r) = self.delete_model(model_name)
                 if not c:
-                    return False, 'problems removing {}'.format(model_name)
+                    return False, 'Error removing model "{}" - {}'.format(model_name, r)
             return True, None
         else:
             return False, None
@@ -572,7 +654,7 @@ class DarwinSdk:
                 dataset_name = dataset['name']
                 (c, r) = self.delete_dataset(dataset_name)
                 if not c:
-                    return False, 'problems removing {}'.format(dataset_name)
+                    return False, 'Error removing dataset "{}" - {}'.format(dataset_name, r)
             return True, None
         else:
             return False, None
@@ -599,7 +681,7 @@ class DarwinSdk:
         else:
             return False, response
 
-    def __validate_artifact_file_path(self, artifact_path):
+    def _validate_artifact_file_path(self, artifact_path):
 
         if not os.path.isdir(artifact_path):
             return False, "Invalid Directory or Path"
@@ -609,13 +691,11 @@ class DarwinSdk:
 
         return True, ""
 
-    def __write_to_file(self, artifact_path, suffix, artifact):
-
-        with tempfile.NamedTemporaryFile(prefix='artifact-', suffix=suffix, delete=False, dir=artifact_path) as file:
+    def _write_to_file(self, artifact_path, suffix, artifact, prefix='artifact-'):
+        with tempfile.NamedTemporaryFile(prefix=prefix, suffix=suffix, delete=False, dir=artifact_path) as file:
             filename = file.name
             file.write(artifact.encode('latin-1'))
             return True, {"filename": filename}
-
 
     # private
     @staticmethod
