@@ -18,10 +18,11 @@ setup(
     author='Sheila Cheng',
     author_email='scheng@sparkcognition.com',
     install_requires=[
-        'requests',
         'validators',
         'urllib3',
         'pandas',
+        'requests_toolbelt',
+        'requests',
         'matplotlib',
         'scikit-learn',
         'scipy',

@@ -8,6 +8,7 @@ import json
 import zipfile
 import io
 import pandas as pd
+from requests_toolbelt.multipart import encoder
 from amb_sdk.config import Config as cfg
 
 
@@ -89,6 +90,7 @@ class DarwinSdk:
         url = self.server_url + self.routes['auth_login']
         payload = {'api_key': str(api_key), 'pass1': str(password)}
         r = self.s.post(url, data=payload)
+        # r = self.s.post(url, data=payload, verify=False)
         if r.ok:
             self.auth_string = 'Bearer ' + r.json()['access_token']
             self.token_start_time = time.time()
@@ -102,6 +104,7 @@ class DarwinSdk:
         url = self.server_url + self.routes['auth_login_user']
         payload = {'username': str(username), 'pass1': str(password)}
         r = self.s.post(url, data=payload)
+        # r = self.s.post(url, data=payload, verify=False)
         if r.ok:
             self.auth_string = 'Bearer ' + r.json()['access_token']
             self.token_start_time = time.time()
@@ -234,7 +237,6 @@ class DarwinSdk:
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
-        print(url)
         payload = {'type': type}
         r = self.s.get(url, headers=headers, params=payload)
         return self.get_return_info(r)
@@ -296,7 +298,7 @@ class DarwinSdk:
         return self.get_return_info(r)
 
     def lookup_tier_num(self, tier_num):
-        url = self.server_url + self.routes['lookup_tier_num'] + urllib.parse.quote(str(tier_num, safe=''))
+        url = self.server_url + self.routes['lookup_tier_num'] + urllib.parse.quote(str(tier_num), safe='')
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
@@ -366,14 +368,16 @@ class DarwinSdk:
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
-        payload = {'dataset_name': str(dataset_name),  'has_header': has_header}
-        try:
-            files = {'dataset': (str(dataset_path), open(str(dataset_path), 'rb'), 'text/csv/h5')}
-        except FileNotFoundError as e:
+        if not os.path.isfile(dataset_path):
             return False, "File not found"
-        except:
-            return False, "File error"
-        r = self.s.post(url, headers=headers, data=payload, files=files)
+        with open(dataset_path, 'rb') as f:
+            form = encoder.MultipartEncoder({
+                "dataset": (str(dataset_path), f, 'text/csv/h5'),
+                'dataset_name': str(dataset_name),
+                'has_header': str(has_header)
+            })
+            headers.update({"Prefer": "respond-async", "Content-Type": form.content_type})
+            r = self.s.post(url, headers=headers, data=form)
         return self.get_return_info(r)
 
     def delete_dataset(self, dataset_name):
@@ -473,19 +477,22 @@ class DarwinSdk:
                     if DarwinSdk.is_number(df[col_name][0]):
                         df[col_name] = pd.to_numeric(df[col_name], errors='coerce')
                     return True, df
-            if (artifact_type == 'Dataset'):
+            if artifact_type in ['Dataset', 'CleanDataTiny']:
                 data = json.loads(response['artifact'])
                 df = pd.DataFrame(data=data[0], index=[0])
                 for x in range(1, len(data)):
                     df = df.append(data[x], ignore_index=True)
                 return True, df
-            if artifact_type == 'AnalyzeData':
+            if artifact_type in ['AnalyzeData', 'CleanData']:
                 buf = '[' + response['artifact'] + ']'
                 buf = buf.replace('}', '},').replace('\n', '').replace(',]', ']')
                 data = json.loads(buf)
                 df = pd.DataFrame(data=data[0], index=[0])
                 for x in range(1, len(data)):
                     df = df.append(data[x], ignore_index=True)
+                return True, df
+            if artifact_type in ['CleanDataTiny']:
+                df = pd.read_csv(io.StringIO(response['artifact']), sep=",")
                 return True, df
             return False, "Unknown artifact type"
         else:
@@ -511,7 +518,7 @@ class DarwinSdk:
             (code, response) = self.get_return_info(r)
             if code is True:
                 artifact = response['dataset']
-                if artifact_type == 'CleanData':
+                if artifact_type in ['CleanData', 'CleanDataTiny']:
                     file_prefix = dataset_name + '-cleaned-'
                     return self._write_to_file(artifact_path, '.csv', artifact, prefix=file_prefix)
             return False, "Unknown dataset artifact type"
@@ -543,26 +550,32 @@ class DarwinSdk:
         r = self.s.delete(url, headers=headers)
         return self.get_return_info(r)
 
-    def download_model(self, model_name, path=None):
+    def download_model(self, model_name, path=None, model_type=None, model_format=None):
         """
         Download a model and data profiler given a model_name and location
         If location is not supplied, it will download to the current directory
         :param model_name: Model name to download
         :param path: Path where the model and data profiler are supposed to be downloaded
+        :param model_type: Model type of the model
+        :param model_format: Format of the model to be downloaded
         :return: Response if the download was successful or not
         """
         headers = {'Authorization': self.auth_string}
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
-        url = self.server_url + self.routes['download_model'] + urllib.parse.quote_plus(model_name)
-        r = self.s.get(url, headers=headers, stream=True)
+        url = self.server_url + self.routes['download_model'] + urllib.parse.quote(model_name, safe='')
+        payload = {}
+        if model_type:
+            payload['model_type'] = model_type
+        if model_format:
+            payload['model_format'] = model_format
+        r = self.s.get(url, headers=headers, stream=True, params=payload)
         try:
             z = zipfile.ZipFile(io.BytesIO(r.content))
             z.extractall(path=path)
         except:
             return False, "Error while downloading models"
         return True, None
-
 
     # Analyze a model or data set
     def analyze_data(self, dataset_name, **kwargs):
@@ -575,22 +588,23 @@ class DarwinSdk:
         return self.get_return_info(r)
 
     # Analyze global feature importances
-    def analyze_model(self, model_name, job_name=None, artifact_name=None, category_name=None):
+    def analyze_model(self, model_name, job_name=None, artifact_name=None, category_name=None, model_type=None):
         url = self.server_url + self.routes['analyze_model'] + urllib.parse.quote(model_name, safe='')
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
-        payload = {'job_name': job_name, 'artifact_name': artifact_name, 'category_name': category_name}
+        payload = {'job_name': job_name, 'artifact_name': artifact_name,
+                   'category_name': category_name, 'model_type': model_type}
         r = self.s.post(url, headers=headers, data=payload)
         return self.get_return_info(r)
 
     # Analyze sample-wise feature importances
-    def analyze_predictions(self, model_name, dataset_name, job_name=None, artifact_name=None):
+    def analyze_predictions(self, model_name, dataset_name, job_name=None, artifact_name=None, model_type=None):
         url = self.server_url + self.routes['analyze_predictions'] + str(model_name) + '/' + dataset_name
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
-        payload = {'job_name': job_name, 'artifact_name': artifact_name}
+        payload = {'job_name': job_name, 'artifact_name': artifact_name, 'model_type': model_type}
         r = self.s.post(url, headers=headers, data=payload)
         return self.get_return_info(r)
 
@@ -619,13 +633,13 @@ class DarwinSdk:
         return self.get_return_info(r)
 
     # Run a model on some dataset
-    def run_model(self, dataset_name, model_name, supervised=True, job_name=None, artifact_name=None):
+    def run_model(self, dataset_name, model_name, **kwargs):
         url = self.server_url + self.routes['run_model'] + model_name + '/' + dataset_name
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
-        payload = {'job_name': job_name, 'artifact_name': artifact_name, 'supervised': supervised}
-        r = self.s.post(url, headers=headers, data=payload)
+        parameters = kwargs
+        r = self.s.post(url, headers=headers, json=parameters)
         return self.get_return_info(r)
 
     # Interactive help
@@ -640,9 +654,10 @@ class DarwinSdk:
         if code:
             for model in response:
                 model_name = model['name']
+                print('Deleting {}'.format(model_name))
                 (c, r) = self.delete_model(model_name)
                 if not c:
-                    return False, 'Error removing model "{}" - {}'.format(model_name, r)
+                    print('Error removing model "{}" - {}'.format(model_name, r))
             return True, None
         else:
             return False, None
@@ -652,9 +667,23 @@ class DarwinSdk:
         if code:
             for dataset in response:
                 dataset_name = dataset['name']
+                print('Deleting {}'.format(dataset_name))
                 (c, r) = self.delete_dataset(dataset_name)
                 if not c:
-                    return False, 'Error removing dataset "{}" - {}'.format(dataset_name, r)
+                    print('Error removing dataset "{}" - {}'.format(dataset_name, r))
+            return True, None
+        else:
+            return False, None
+
+    def delete_all_artifacts(self):
+        (code, response) = self.lookup_artifact()
+        if code:
+            for artifact in response:
+                artifact_name = artifact['name']
+                print('Deleting {}'.format(artifact_name))
+                (c, r) = self.delete_artifact(artifact_name)
+                if not c:
+                    print('Error removing artifact "{}" - {}'.format(artifact_name, r))
             return True, None
         else:
             return False, None
@@ -680,6 +709,19 @@ class DarwinSdk:
             return False, response
         else:
             return False, response
+
+    def display_population(self, model_name):
+        """
+        Display population for the given model name
+        :param model_name: model name for which the population is to be displayed
+        :return: Json string with the population display
+        """
+        headers = self.get_auth_header()
+        if headers is None:
+            return False, "Cannot get Auth token. Please log in."
+        url = self.server_url + self.routes['lookup_model_name'] + model_name + '/population'
+        r = self.s.get(url, headers=headers)
+        return self.get_return_info(r)
 
     def _validate_artifact_file_path(self, artifact_path):
 
