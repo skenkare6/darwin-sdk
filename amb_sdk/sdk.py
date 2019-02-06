@@ -49,6 +49,7 @@ class DarwinSdk:
               'lookup_tier_num': 'lookup/tier/',
               'lookup_user': 'lookup/user',
               'lookup_username': 'lookup/user/',
+              'get_info': 'info',
               'create_model': 'train/model',
               'delete_model': 'train/model/',
               'resume_training_model': 'train/model/',
@@ -321,6 +322,11 @@ class DarwinSdk:
         r = self.s.get(url, headers=headers)
         return self.get_return_info(r)
 
+    def get_info(self):
+        url = self.server_url + self.routes['get_info']
+        r = self.s.get(url)
+        return self.get_return_info(r)
+
     # Train a model
     def create_model(self, dataset_names, **kwargs):
         url = self.server_url + self.routes['create_model']
@@ -478,6 +484,13 @@ class DarwinSdk:
                         df[col_name] = pd.to_numeric(df[col_name], errors='coerce')
                     return True, df
             if artifact_type in ['Dataset', 'CleanDataTiny']:
+                data = json.loads(response['artifact'])
+                df = pd.DataFrame(data=data[0], index=[0])
+                for x in range(1, len(data)):
+                    df = df.append(data[x], ignore_index=True)
+                return True, df
+            if self._is_local() and artifact_type in ('AnalyzeData'):
+                # for onprem, we have to intepret artifact differently
                 data = json.loads(response['artifact'])
                 df = pd.DataFrame(data=data[0], index=[0])
                 for x in range(1, len(data)):
@@ -738,6 +751,10 @@ class DarwinSdk:
             filename = file.name
             file.write(artifact.encode('latin-1'))
             return True, {"filename": filename}
+
+    def _is_local(self):
+        c, r = self.get_info()
+        return r['local']
 
     # private
     @staticmethod
