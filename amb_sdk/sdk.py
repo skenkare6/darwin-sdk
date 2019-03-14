@@ -49,6 +49,7 @@ class DarwinSdk:
               'lookup_tier_num': 'lookup/tier/',
               'lookup_user': 'lookup/user',
               'lookup_username': 'lookup/user/',
+              'display_population': 'lookup/model/{}/population',
               'get_info': 'info',
               'create_model': 'train/model',
               'delete_model': 'train/model/',
@@ -69,6 +70,7 @@ class DarwinSdk:
               'get_url': '',
               'delete_all_datasets': '',
               'delete_all_models': '',
+              'delete_all_artifacts': '',
               'wait_for_job': ''}
 
     # Set URL
@@ -732,7 +734,7 @@ class DarwinSdk:
         headers = self.get_auth_header()
         if headers is None:
             return False, "Cannot get Auth token. Please log in."
-        url = self.server_url + self.routes['lookup_model_name'] + model_name + '/population'
+        url = self.server_url + self.routes['display_population'].format(model_name)
         r = self.s.get(url, headers=headers)
         return self.get_return_info(r)
 
